@@ -1,0 +1,55 @@
+[project]
+name = "snotel-lib"
+version = "0.1.0"
+description = "Python library for fetching, caching, and validating SNOTEL data"
+readme = "README.md"
+authors = [
+    { name = "Elliott Ruebush", email = "eruebush@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "geopandas==1.0.1",
+    "pandas>=3.0.1",
+    "pandera[geopandas]>=0.29.0",
+    "platformdirs>=4.9.2",
+    "pyarrow>=23.0.1",
+    "requests>=2.32.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
+    "prek>=0.3.0",
+    "ruff>=0.9.0",
+    "ty>=0.0.13",
+    "ipykernel>=7.2.0",
+    "ipython>=9.10.0",
+    "matplotlib>=3.10.8",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "RET", "ARG", "PTH", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Marimo notebooks use uppercase arguments for constants and expressions for display
+"notebooks/*.py" = ["N803", "B018", "ARG001", "RUF059", "N806"]
+"notebooks/*.ipynb" = ["N803", "B018", "ARG001", "RUF059", "N806"]
+
+[tool.ty.src]
+exclude = ["**/*.ipynb"]
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
