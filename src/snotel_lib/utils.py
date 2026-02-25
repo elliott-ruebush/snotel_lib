@@ -9,6 +9,6 @@ def get_min_and_max_rows(station_metadata: gpd.GeoDataFrame, column_name: str) -
         (station_metadata["end_date"] > t_minus_two) & (station_metadata["end_date"] <= dt.date.today())
     ].index.unique()
     current_stations_metadata = station_metadata.loc[current_stations]
-    max_column_idx = current_stations_metadata[column_name].idxmax()
-    min_column_idx = current_stations_metadata[column_name].idxmin()
+    max_column_idx = current_stations_metadata[column_name].dropna().idxmax()
+    min_column_idx = current_stations_metadata[column_name].dropna().idxmin()
     return current_stations_metadata.loc[[max_column_idx, min_column_idx]]
