@@ -64,11 +64,15 @@ class SnotelClient:
             if df.index.name != "code" and "code" in df.columns:
                 df = df.set_index("code")
             res = typing.cast(GeoDataFrame[StationMetadataSchema], StationMetadataSchema.validate(df))
-            logger.info(f"Metadata retrieval took {time.perf_counter() - start_time:.2f}s (cache hit)")
+            logger.info(
+                f"Metadata retrieval took {time.perf_counter() - start_time:.2f}s (cache hit, {len(res)} stations)"
+            )
             return res
 
         res = self._fetch_and_cache_metadata(cache_path)
-        logger.info(f"Metadata retrieval took {time.perf_counter() - start_time:.2f}s (cache miss)")
+        logger.info(
+            f"Metadata retrieval took {time.perf_counter() - start_time:.2f}s (cache miss, {len(res)} stations)"
+        )
         return res
 
     def _is_cache_valid(self, path: Path, days: int) -> bool:
@@ -106,11 +110,17 @@ class SnotelClient:
             logger.info(f"Retrieving data for {station_id} from local cache: {cache_path}")
             df = pl.read_parquet(cache_path)
             res = self._filter_and_process(df, start_date, end_date)
-            logger.info(f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s (cache hit)")
+            logger.info(
+                f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s "
+                f"(cache hit, {len(res)} rows)"
+            )
             return res
 
         res = self._fetch_and_cache_station_data(station_id, cache_path, start_date, end_date)
-        logger.info(f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s (cache miss)")
+        logger.info(
+            f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s "
+            f"(cache miss, {len(res)} rows)"
+        )
         return res
 
     def _fetch_and_cache_station_data(
@@ -161,7 +171,10 @@ class SnotelClient:
         if not force_update and self._is_cache_valid(cache_path, STATION_CACHE_DAYS):
             logger.info(f"Retrieving combined data from local cache: {cache_path}")
             res = pl.read_parquet(cache_path)
-            logger.info(f"Combined data retrieval took {time.perf_counter() - start_time:.2f}s (cache hit)")
+            logger.info(
+                f"Combined data retrieval took {time.perf_counter() - start_time:.2f}s "
+                f"(cache hit, {len(res)} rows, {res.estimated_size('mb'):.1f} MB)"
+            )
             return res
 
         logger.info(f"Fetching combined data from internet: {EGAGLI_ALL_STATIONS_TAR_URL}")
@@ -179,7 +192,10 @@ class SnotelClient:
             combined_df = combined_df.with_columns(pl.col("station_id").cast(pl.String))
 
         combined_df.write_parquet(cache_path)
-        logger.info(f"Combined data retrieval took {time.perf_counter() - start_time:.2f}s (cache miss)")
+        logger.info(
+            f"Combined data retrieval took {time.perf_counter() - start_time:.2f}s "
+            f"(cache miss, {len(combined_df)} rows, {combined_df.estimated_size('mb'):.1f} MB)"
+        )
         return combined_df
 
     def _parse_tar_to_dataframes(self, content: bytes) -> list[pl.DataFrame]:
