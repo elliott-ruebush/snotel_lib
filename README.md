@@ -2,7 +2,7 @@
 
 A Python client for fetching, caching, and validating SNOTEL data.
 
-All credit to [egagli](https://github.com/egagli) for their implementation which backs this repo (see [egagli/snotel_ccss_stations](https://github.com/egagli/snotel_ccss_stations)) and to all the folks/organizations listed in the acknowledgments section there.
+All credit to [egagli](https://github.com/egagli) for their data fetching implementation which backs this repo (see [egagli/snotel_ccss_stations](https://github.com/egagli/snotel_ccss_stations)) and to all the folks/organizations listed in the acknowledgments section there.
 
 More info on SNOTEL (an awesome, cost-effective, and critical network of sensors!): https://www.nrcs.usda.gov/state-offices/nevada/what-is-a-snotel-station
 
