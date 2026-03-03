@@ -14,37 +14,13 @@ def test_client_init(tmp_path):
     assert client.cache_dir == tmp_path
 
 
-def test_metadata_caching(mocker, tmp_path):
+def test_metadata_caching(mocker, tmp_path, mock_geojson):
     client = SnotelClient(cache_dir=tmp_path)
 
     # Mock requests.get
     mock_response = mocker.Mock()
     # A minimal valid geojson for geopandas to read, including all schema columns
-    geojson_content = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "properties": {
-                    "code": "123",
-                    "name": "Test",
-                    "network": "SNTL",
-                    "elevation_m": 1000,
-                    "latitude": 45,
-                    "longitude": -120,
-                    "state": "WA",
-                    "HUC": "12345",
-                    "mgrs": "ABC",
-                    "mountainRange": "Rainier",
-                    "beginDate": "1980-01-01",
-                    "endDate": "2023-01-01",
-                    "csvData": True,
-                },
-                "geometry": {"type": "Point", "coordinates": [-120, 45]},
-            }
-        ],
-    }
-    mock_response.content = json.dumps(geojson_content).encode()
+    mock_response.content = json.dumps(mock_geojson).encode()
     mock_response.status_code = 200
     mocker.patch("requests.get", return_value=mock_response)
 
@@ -60,7 +36,7 @@ def test_metadata_caching(mocker, tmp_path):
     ) == 1
 
 
-def test_station_data_caching(mocker, tmp_path):
+def test_station_data_caching(mocker, tmp_path, mock_station_csv):
     client = SnotelClient(cache_dir=tmp_path)
 
     # Mock requests.get
@@ -68,9 +44,7 @@ def test_station_data_caching(mocker, tmp_path):
     # Now that we have a stricter schema, we must include all columns or accept NaNs if allowed
     # Our schema specifies swe_m, snow_depth_m, precip_m, tavg_c, tmin_c, tmax_c are required but nullable.
     # However, Pandera's DataFrameModel requires the column to exist if typed as Series[float].
-    header = "datetime,WTEQ,SNWD,PRCPSA,TAVG,TMIN,TMAX"
-    row = "2023-01-01,100,50,0,1,2,3"
-    mock_response.content = f"{header}\n{row}".encode()
+    mock_response.content = mock_station_csv.encode()
     mock_response.status_code = 200
     mocker.patch("requests.get", return_value=mock_response)
 
