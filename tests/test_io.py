@@ -52,14 +52,14 @@ def _raw_csv_bytes() -> bytes:
 class TestDtypesFromSchema:
     def test_extracts_all_snotel_fields(self):
         dtypes = dtypes_from_schema(SnotelDataSchema)
-        assert "datetime" in dtypes
-        assert "swe_m" in dtypes
-        assert "snow_depth_m" in dtypes
+        assert SnotelDataSchema.datetime in dtypes
+        assert SnotelDataSchema.swe_m in dtypes
+        assert SnotelDataSchema.snow_depth_m in dtypes
 
     def test_correct_dtype_instances(self):
         dtypes = dtypes_from_schema(SnotelDataSchema)
-        assert isinstance(dtypes["swe_m"], pl.Float32)
-        assert isinstance(dtypes["datetime"], pl.Date)
+        assert isinstance(dtypes[SnotelDataSchema.swe_m], pl.Float32)
+        assert isinstance(dtypes[SnotelDataSchema.datetime], pl.Date)
 
     def test_custom_schema(self):
         class MySchema(pl_pa.DataFrameModel):
@@ -80,17 +80,17 @@ class TestCastToSchema:
     def test_basic_cast_validates(self):
         raw = _make_raw_df()
         result = cast_to_schema(raw, SnotelDataSchema)
-        assert result.schema["swe_m"] == pl.Float32
+        assert result.schema[SnotelDataSchema.swe_m] == pl.Float32
 
     def test_rename_then_cast(self):
         """column_map is applied before casting."""
         raw = pl.DataFrame(
             {
                 "WTEQ": [0.1, 0.2],
-                "datetime": [date(2024, 1, 1), date(2024, 1, 2)],
+                SnotelDataSchema.datetime: [date(2024, 1, 1), date(2024, 1, 2)],
             }
         )
-        column_map = {"WTEQ": "swe_m"}
+        column_map = {"WTEQ": SnotelDataSchema.swe_m}
 
         class TinySchema(pl_pa.DataFrameModel):
             datetime: Series[pl.Date] = pl_pa.Field()
@@ -101,9 +101,9 @@ class TestCastToSchema:
                 coerce = True
 
         result = cast_to_schema(raw, TinySchema, column_map=column_map)
-        assert "swe_m" in result.columns
+        assert SnotelDataSchema.swe_m in result.columns
         assert "WTEQ" not in result.columns
-        assert result.schema["swe_m"] == pl.Float32
+        assert result.schema[SnotelDataSchema.swe_m] == pl.Float32
 
     def test_schema_violation_raises(self):
         """A DataFrame missing a required non-nullable column should fail validation."""
@@ -138,7 +138,7 @@ class TestReadValidatedCsv:
             null_values=["", "NaN"],
         )
         assert result.height == 2
-        assert result.schema["swe_m"] == pl.Float32
+        assert result.schema[SnotelDataSchema.swe_m] == pl.Float32
 
 
 # ---------------------------------------------------------------------------
@@ -165,4 +165,4 @@ class TestReadValidatedParquet:
 
         result = read_validated_parquet(pq_path, SnotelDataSchema)
         assert result.height == 2
-        assert result.schema["swe_m"] == pl.Float32
+        assert result.schema[SnotelDataSchema.swe_m] == pl.Float32

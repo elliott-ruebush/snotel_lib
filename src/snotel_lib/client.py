@@ -145,9 +145,35 @@ class SnotelClient:
         return self._filter_and_process(df, start_date, end_date)
 
     def _process_raw_polars_data(self, df: pl.DataFrame, is_all_stations: bool = False) -> pl.DataFrame:
-        """Rename columns from source names, cast to schema dtypes, and validate."""
+        """Rename columns from source names, cast to schema dtypes, validate, and compute accumulated precip."""
         schema = AllSnotelDataSchema if is_all_stations else SnotelDataSchema
-        return cast_to_schema(df, schema, column_map=STATION_DATA_COLUMN_MAP)
+        df = cast_to_schema(df, schema, column_map=STATION_DATA_COLUMN_MAP)
+
+        sort_cols = (
+            [AllSnotelDataSchema.station_id, SnotelDataSchema.datetime]
+            if is_all_stations
+            else [SnotelDataSchema.datetime]
+        )
+        df = df.sort(sort_cols)
+
+        # The egagli data seems to do precip per day, but SNOTEL naturally uses accumulated precipitation by water year (starting Oct 1)
+        water_year_expr = pl.col(SnotelDataSchema.datetime).dt.year() + (
+            pl.col(SnotelDataSchema.datetime).dt.month() >= 10
+        ).cast(pl.Int32)
+        partition_cols = [AllSnotelDataSchema.station_id, "water_year"] if is_all_stations else ["water_year"]
+
+        return (
+            df.with_columns(water_year=water_year_expr)
+            .with_columns(
+                pl.col(SnotelDataSchema.precip_m)
+                .fill_null(0.0)
+                .cum_sum()
+                .over(partition_cols)
+                .cast(pl.Float32)
+                .alias(SnotelDataSchema.precip_m)
+            )
+            .drop("water_year")
+        )
 
     def _filter_and_process(self, df: pl.DataFrame, start_date: str | None, end_date: str | None) -> pl.DataFrame:
         """Ensure column naming and apply date filtering."""

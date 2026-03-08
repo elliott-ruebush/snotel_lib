@@ -5,6 +5,7 @@ from pandera.typing import Index, Series
 from pandera.typing.geopandas import GeoSeries
 
 
+# TODO: enriching with a snow_ratio variable would be interesting
 class SnotelDataSchema(pl_pa.DataFrameModel):
     """Schema types for daily SNOTEL station data in Polars."""
 

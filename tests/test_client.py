@@ -7,6 +7,7 @@ import pytest
 import requests
 
 from snotel_lib import SnotelClient
+from snotel_lib.schemas import AllSnotelDataSchema, SnotelDataSchema, StationMetadataSchema
 
 
 def test_client_init(tmp_path):
@@ -27,8 +28,8 @@ def test_metadata_caching(mocker, tmp_path, mock_geojson):
     # First call - should hit mock
     metadata = client.get_stations_metadata()
     assert "123" in metadata.index
-    assert "mountain_range" in metadata.columns
-    assert metadata.loc["123", "mountain_range"] == "Rainier"
+    assert StationMetadataSchema.mountain_range in metadata.columns
+    assert metadata.loc["123", StationMetadataSchema.mountain_range] == "Rainier"
     assert (tmp_path / "all_stations.parquet").exists()
 
     assert (
@@ -50,8 +51,8 @@ def test_station_data_caching(mocker, tmp_path, mock_station_csv):
 
     # First call
     df = client.get_station_data("679_WA_SNTL")
-    assert df.select("swe_m").item(0, 0) == 100
-    assert "snow_depth_m" in df.columns
+    assert df.select(SnotelDataSchema.swe_m).item(0, 0) == 100
+    assert SnotelDataSchema.snow_depth_m in df.columns
     assert (tmp_path / "679_WA_SNTL.parquet").exists()
 
     # Second call
@@ -100,7 +101,7 @@ def test_get_all_station_data(mocker, tmp_path):
     mocker.patch("requests.get", return_value=mock_response)
 
     df = client.get_all_station_data()
-    assert "station_id" in df.columns
-    assert df.select("station_id").item(0, 0) == "679_WA_SNTL"
-    assert df.select("swe_m").item(0, 0) == 100
+    assert AllSnotelDataSchema.station_id in df.columns
+    assert df.select(AllSnotelDataSchema.station_id).item(0, 0) == "679_WA_SNTL"
+    assert df.select(SnotelDataSchema.swe_m).item(0, 0) == 100
     assert (tmp_path / "all_station_data.parquet").exists()
