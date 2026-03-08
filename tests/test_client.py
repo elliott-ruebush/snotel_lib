@@ -89,7 +89,7 @@ def test_get_all_station_data(mocker, tmp_path):
     buf = io.BytesIO()
     with lzma.open(buf, "wb") as lzma_file:
         with tarfile.open(fileobj=lzma_file, mode="w:") as tar:
-            csv_content = b"datetime,WTEQ,SNWD\n2023-01-01,100,50"
+            csv_content = b"datetime,WTEQ,SNWD,PRCPSA,TAVG,TMIN,TMAX\n2023-01-01,100,50,,,,"
             tarinfo = tarfile.TarInfo(name="679_WA_SNTL.csv")
             tarinfo.size = len(csv_content)
             tar.addfile(tarinfo, io.BytesIO(csv_content))

@@ -13,7 +13,8 @@ import requests
 from pandera.typing.geopandas import GeoDataFrame
 
 from .config import METADATA_CACHE_DAYS, STATION_CACHE_DAYS, get_cache_dir
-from .schemas import SNOTEL_DATA_DTYPES, StationMetadataSchema
+from .io import cast_to_schema
+from .schemas import AllSnotelDataSchema, SnotelDataSchema, StationMetadataSchema
 
 logger = logging.getLogger(__name__)
 
@@ -24,28 +25,28 @@ EGAGLI_ALL_STATIONS_TAR_URL = (
 )
 
 METADATA_COLUMN_MAP = {
-    "code": "code",
-    "name": "name",
-    "network": "network",
-    "elevation_m": "elevation_m",
-    "latitude": "latitude",
-    "longitude": "longitude",
-    "state": "state",
-    "HUC": "huc",
-    "mgrs": "mgrs",
-    "mountainRange": "mountain_range",
-    "beginDate": "begin_date",
-    "endDate": "end_date",
-    "csvData": "csv_data",
+    "code": StationMetadataSchema.code,
+    "name": StationMetadataSchema.name,
+    "network": StationMetadataSchema.network,
+    "elevation_m": StationMetadataSchema.elevation_m,
+    "latitude": StationMetadataSchema.latitude,
+    "longitude": StationMetadataSchema.longitude,
+    "state": StationMetadataSchema.state,
+    "HUC": StationMetadataSchema.huc,
+    "mgrs": StationMetadataSchema.mgrs,
+    "mountainRange": StationMetadataSchema.mountain_range,
+    "beginDate": StationMetadataSchema.begin_date,
+    "endDate": StationMetadataSchema.end_date,
+    "csvData": StationMetadataSchema.csv_data,
 }
 
 STATION_DATA_COLUMN_MAP = {
-    "WTEQ": "swe_m",
-    "SNWD": "snow_depth_m",
-    "PRCPSA": "precip_m",
-    "TMIN": "tmin_c",
-    "TMAX": "tmax_c",
-    "TAVG": "tavg_c",
+    "WTEQ": SnotelDataSchema.swe_m,
+    "SNWD": SnotelDataSchema.snow_depth_m,
+    "PRCPSA": SnotelDataSchema.precip_m,
+    "TMIN": SnotelDataSchema.tmin_c,
+    "TMAX": SnotelDataSchema.tmax_c,
+    "TAVG": SnotelDataSchema.tavg_c,
 }
 
 
@@ -61,8 +62,8 @@ class SnotelClient:
         if not force_update and self._is_cache_valid(cache_path, METADATA_CACHE_DAYS):
             logger.info(f"Retrieving metadata from local cache: {cache_path}")
             df = gpd.read_parquet(cache_path)
-            if df.index.name != "code" and "code" in df.columns:
-                df = df.set_index("code")
+            if df.index.name != StationMetadataSchema.code and StationMetadataSchema.code in df.columns:
+                df = df.set_index(StationMetadataSchema.code)
             res = typing.cast(GeoDataFrame[StationMetadataSchema], StationMetadataSchema.validate(df))
             logger.info(
                 f"Metadata retrieval took {time.perf_counter() - start_time:.2f}s (cache hit, {len(res)} stations)"
@@ -88,8 +89,8 @@ class SnotelClient:
 
         df = gpd.read_file(io.BytesIO(response.content))
         df = df.rename(columns=METADATA_COLUMN_MAP)
-        if "code" in df.columns:
-            df = df.set_index("code")
+        if StationMetadataSchema.code in df.columns:
+            df = df.set_index(StationMetadataSchema.code)
 
         validated_df = typing.cast(GeoDataFrame[StationMetadataSchema], StationMetadataSchema.validate(df))
         validated_df.to_parquet(cache_path)
@@ -143,23 +144,19 @@ class SnotelClient:
 
         return self._filter_and_process(df, start_date, end_date)
 
-    def _process_raw_polars_data(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Rename and cast columns to target schema types."""
-        cols_to_rename = {k: v for k, v in STATION_DATA_COLUMN_MAP.items() if k in df.columns}
-        df = df.rename(cols_to_rename)
-
-        cast_exprs = [pl.col(col).cast(dtype) for col, dtype in SNOTEL_DATA_DTYPES.items() if col in df.columns]
-        df = df.with_columns(cast_exprs)
-        return df
+    def _process_raw_polars_data(self, df: pl.DataFrame, is_all_stations: bool = False) -> pl.DataFrame:
+        """Rename columns from source names, cast to schema dtypes, and validate."""
+        schema = AllSnotelDataSchema if is_all_stations else SnotelDataSchema
+        return cast_to_schema(df, schema, column_map=STATION_DATA_COLUMN_MAP)
 
     def _filter_and_process(self, df: pl.DataFrame, start_date: str | None, end_date: str | None) -> pl.DataFrame:
         """Ensure column naming and apply date filtering."""
-        df = self._process_raw_polars_data(df)
+        df = self._process_raw_polars_data(df, is_all_stations=False)
 
         if start_date:
-            df = df.filter(pl.col("datetime") >= pl.lit(start_date).cast(pl.Date))
+            df = df.filter(pl.col(SnotelDataSchema.datetime) >= pl.lit(start_date).cast(pl.Date))
         if end_date:
-            df = df.filter(pl.col("datetime") <= pl.lit(end_date).cast(pl.Date))
+            df = df.filter(pl.col(SnotelDataSchema.datetime) <= pl.lit(end_date).cast(pl.Date))
 
         return df
 
@@ -185,11 +182,11 @@ class SnotelClient:
         dfs = self._parse_tar_to_dataframes(response.content)
         combined_df = pl.concat(dfs, how="vertical_relaxed")
 
-        combined_df = self._process_raw_polars_data(combined_df)
-
         # Add station_id if not already correctly cast
-        if "station_id" in combined_df.columns:
-            combined_df = combined_df.with_columns(pl.col("station_id").cast(pl.String))
+        if AllSnotelDataSchema.station_id in combined_df.columns:
+            combined_df = combined_df.with_columns(pl.col(AllSnotelDataSchema.station_id).cast(pl.String))
+
+        combined_df = self._process_raw_polars_data(combined_df, is_all_stations=True)
 
         combined_df.write_parquet(cache_path)
         logger.info(
@@ -216,6 +213,6 @@ class SnotelClient:
                                 try_parse_dates=True,
                                 null_values=["", "NaN", "NA", "null"],
                             )
-                            df = df.with_columns(pl.lit(station_id).alias("station_id"))
+                            df = df.with_columns(pl.lit(station_id).alias(AllSnotelDataSchema.station_id))
                             dfs.append(df)
         return dfs
