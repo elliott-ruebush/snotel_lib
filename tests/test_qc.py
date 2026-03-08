@@ -3,7 +3,8 @@ from datetime import date
 import polars as pl
 from polars.testing import assert_frame_equal
 
-from snotel_lib.clean import (
+from snotel_lib.schemas import AllSnotelDataSchema, SnotelDataSchema
+from snotel_lib.validation import (
     FilterCheck,
     FilterList,
     FlagList,
@@ -15,7 +16,6 @@ from snotel_lib.clean import (
     swe_exceeds_snow_depth_filter,
     unlikely_snow_ratio_flag,
 )
-from snotel_lib.schemas import AllSnotelDataSchema, SnotelDataSchema
 
 
 def test_out_of_range_filter_removes_row():
