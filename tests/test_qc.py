@@ -277,8 +277,8 @@ def test_snow_density_flag():
             QCLogSchema.datetime: [date(2023, 1, 1), date(2023, 1, 3)],
             QCLogSchema.name: ["IMPLAUSIBLE_SNOW_DENSITY"] * 2,
             QCLogSchema.explanation: [
-                "SWE/snow_depth ratio outside plausible range [0.02, 0.6]",
-                "SWE/snow_depth ratio outside plausible range [0.02, 0.6]",
+                "SWE/snow_depth ratio outside expected range of [0.02, 0.6]",
+                "SWE/snow_depth ratio outside expected range of [0.02, 0.6]",
             ],
         }
     )
