@@ -6,17 +6,17 @@ import tarfile
 import pytest
 import requests
 
-from snotel_lib import SnotelClient
+from snotel_lib import EgagliClient
 from snotel_lib.schemas import AllSnotelDataSchema, SnotelDataSchema, StationMetadataSchema
 
 
 def test_client_init(tmp_path):
-    client = SnotelClient(cache_dir=tmp_path)
+    client = EgagliClient(cache_dir=tmp_path)
     assert client.cache_dir == tmp_path
 
 
 def test_metadata_caching(mocker, tmp_path, mock_geojson):
-    client = SnotelClient(cache_dir=tmp_path)
+    client = EgagliClient(cache_dir=tmp_path)
 
     # Mock requests.get
     mock_response = mocker.Mock()
@@ -38,7 +38,7 @@ def test_metadata_caching(mocker, tmp_path, mock_geojson):
 
 
 def test_station_data_caching(mocker, tmp_path, mock_station_csv):
-    client = SnotelClient(cache_dir=tmp_path)
+    client = EgagliClient(cache_dir=tmp_path)
 
     # Mock requests.get
     mock_response = mocker.Mock()
@@ -69,7 +69,7 @@ def test_station_data_caching(mocker, tmp_path, mock_station_csv):
 def test_station_data_validation_failure(mocker, tmp_path):
     import polars.exceptions as ple
 
-    client = SnotelClient(cache_dir=tmp_path)
+    client = EgagliClient(cache_dir=tmp_path)
 
     # Mock requests.get with invalid data (wrong type for swe_m)
     mock_response = mocker.Mock()
@@ -84,7 +84,7 @@ def test_station_data_validation_failure(mocker, tmp_path):
 
 
 def test_get_all_station_data(mocker, tmp_path):
-    client = SnotelClient(cache_dir=tmp_path)
+    client = EgagliClient(cache_dir=tmp_path)
 
     # Create a small tar.lzma in memory
     buf = io.BytesIO()

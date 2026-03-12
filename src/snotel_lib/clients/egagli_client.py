@@ -12,9 +12,10 @@ import polars as pl
 import requests
 from pandera.typing.geopandas import GeoDataFrame
 
-from .config import METADATA_CACHE_DAYS, STATION_CACHE_DAYS, get_cache_dir
-from .io import cast_to_schema
-from .schemas import AllSnotelDataSchema, SnotelDataSchema, StationMetadataSchema
+from ..config import METADATA_CACHE_DAYS, STATION_CACHE_DAYS, get_cache_dir
+from ..io import cast_to_schema
+from ..schemas import AllSnotelDataSchema, SnotelDataSchema, StationMetadataSchema
+from .base import BaseSnotelClient
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,9 @@ STATION_DATA_COLUMN_MAP = {
 }
 
 
-class SnotelClient:
+class EgagliClient(BaseSnotelClient):
     def __init__(self, cache_dir: Path | None = None):
+        super().__init__(cache_dir)
         self.cache_dir = cache_dir or get_cache_dir()
 
     def get_stations_metadata(self, force_update: bool = False) -> GeoDataFrame[StationMetadataSchema]:

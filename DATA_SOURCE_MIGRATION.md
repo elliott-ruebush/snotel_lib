@@ -43,3 +43,11 @@ The current GitHub repository source is excellent for prototyping, but has a few
 Because `snotel_lib/client.py` isolates the data extraction via `SnotelClient.get_station_data()` and `SnotelClient.get_all_station_data()`, migrating sources only requires rewriting this single class.
 
 The rest of the library (`clean/`, computations, schemas) operates strictly on the parsed `pl.DataFrame` defined by `SnotelDataSchema`. As long as the new client outputs this exact Polars schema, the backend and frontend are entirely decoupled from the migration.
+
+## Status Update: Metloom Integration (March 2026)
+
+A dual-client architecture was implemented in `snotel_lib/clients/`, abstracting behind a `BaseSnotelClient` interface.
+1. **`EgagliClient`**: The original GitHub-scraping logic. **Best for massive bulk downloads** (e.g. all 900+ stations) because it fetches a single pre-aggregated tarball in seconds. Currently in use by `generate_leaderboard.py` to power the nightly build.
+2. **`MetloomClient`**: A new wrapper integrating `metloom` as a native interface to the NRCS AWDB API. This maps imperial NRCS units (inches/Fahrenheit) back to the metric `SnotelDataSchema` standard.
+   * *Limitation:* Metloom/AWDB does not easily support a single, fast endpoint to download the historical context for *all* stations simultaneously. Hitting the API sequentially/concurrently for a massive backend generation job is too slow.
+   * *Use Case:* Perfectly suited for a future dynamic API where a user queries a *single station* for up-to-the-minute live data, bypassing the delay of the `egagli` GitHub Action.
