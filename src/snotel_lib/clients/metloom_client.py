@@ -1,9 +1,10 @@
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import polars as pl
+from dateutil.relativedelta import relativedelta
 from metloom.pointdata import SnotelPointData
 from metloom.variables import SnotelVariables
 from pandera.typing.geopandas import GeoDataFrame
@@ -75,7 +76,7 @@ class MetloomClient(BaseSnotelClient):
         snotel_point = SnotelPointData(station_id, "Unknown Snotel")
 
         if not start_date:
-            s_date = datetime.now() - timedelta(days=365 * 10)  # Arbitrary 10 year backfill if none
+            s_date = datetime.now() - relativedelta(years=10)  # 10 year backfill if none
         else:
             s_date = datetime.strptime(start_date, "%Y-%m-%d")
 
@@ -97,7 +98,7 @@ class MetloomClient(BaseSnotelClient):
         try:
             pandas_df = snotel_point.get_daily_data(s_date, e_date, vrs)
         except Exception as e:
-            logger.error(f"Failed to fetch data for {station_id} from Metloom: {e}")
+            logger.error("Failed to fetch data for %s from Metloom: %s", station_id, e)
             # Return empty matching dataframe
             schema = dtypes_from_schema(SnotelDataSchema)
             return pl.DataFrame(schema=schema)
