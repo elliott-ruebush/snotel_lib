@@ -4,7 +4,6 @@ import lzma
 import tarfile
 import time
 import typing
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import geopandas as gpd
@@ -77,12 +76,6 @@ class EgagliClient(BaseSnotelClient):
             f"Metadata retrieval took {time.perf_counter() - start_time:.2f}s (cache miss, {len(res)} stations)"
         )
         return res
-
-    def _is_cache_valid(self, path: Path, days: int) -> bool:
-        if not path.exists():
-            return False
-        mtime = datetime.fromtimestamp(path.stat().st_mtime)
-        return datetime.now() - mtime < timedelta(days=days)
 
     def _fetch_and_cache_metadata(self, cache_path: Path) -> GeoDataFrame[StationMetadataSchema]:
         logger.info(f"Fetching metadata from internet: {EGAGLI_GEOJSON_URL}")
@@ -180,13 +173,7 @@ class EgagliClient(BaseSnotelClient):
     def _filter_and_process(self, df: pl.DataFrame, start_date: str | None, end_date: str | None) -> pl.DataFrame:
         """Ensure column naming and apply date filtering."""
         df = self._process_raw_polars_data(df, is_all_stations=False)
-
-        if start_date:
-            df = df.filter(pl.col(SnotelDataSchema.datetime) >= pl.lit(start_date).cast(pl.Date))
-        if end_date:
-            df = df.filter(pl.col(SnotelDataSchema.datetime) <= pl.lit(end_date).cast(pl.Date))
-
-        return df
+        return super()._filter_and_process(df, start_date, end_date)
 
     def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
         """Fetch combined daily SNOTEL data for all stations."""

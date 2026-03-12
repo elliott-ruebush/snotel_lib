@@ -1,10 +1,11 @@
 import abc
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import polars as pl
 from pandera.typing.geopandas import GeoDataFrame
 
-from ..schemas import StationMetadataSchema
+from ..schemas import SnotelDataSchema, StationMetadataSchema
 
 
 class BaseSnotelClient(abc.ABC):
@@ -60,3 +61,19 @@ class BaseSnotelClient(abc.ABC):
             A Polars DataFrame conforming to AllSnotelDataSchema.
         """
         pass
+
+    def _is_cache_valid(self, path: Path, days: int) -> bool:
+        """Helper to determine if a cached file is still valid."""
+        if not path.exists():
+            return False
+        mtime = datetime.fromtimestamp(path.stat().st_mtime)
+        return datetime.now() - mtime < timedelta(days=days)
+
+    def _filter_and_process(self, df: pl.DataFrame, start_date: str | None, end_date: str | None) -> pl.DataFrame:
+        """Apply date filtering to an already-processed dataframe."""
+        if start_date:
+            df = df.filter(pl.col(SnotelDataSchema.datetime) >= pl.lit(start_date).cast(pl.Date))
+        if end_date:
+            df = df.filter(pl.col(SnotelDataSchema.datetime) <= pl.lit(end_date).cast(pl.Date))
+
+        return df

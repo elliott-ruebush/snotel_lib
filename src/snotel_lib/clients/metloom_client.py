@@ -19,9 +19,9 @@ STATION_DATA_COLUMN_MAP = {
     "SWE": SnotelDataSchema.swe_m,
     "SNOWDEPTH": SnotelDataSchema.snow_depth_m,
     "PRECIPITATION": SnotelDataSchema.precip_m,
-    "TOBS": SnotelDataSchema.tavg_c,
-    "TEMPMIN": SnotelDataSchema.tmin_c,
-    "TEMPMAX": SnotelDataSchema.tmax_c,
+    "AVG AIR TEMP": SnotelDataSchema.tavg_c,
+    "MIN AIR TEMP": SnotelDataSchema.tmin_c,
+    "MAX AIR TEMP": SnotelDataSchema.tmax_c,
 }
 
 
@@ -51,7 +51,7 @@ class MetloomClient(BaseSnotelClient):
         if not force_update and self._is_cache_valid(cache_path, STATION_CACHE_DAYS):
             logger.info(f"Retrieving metloom data for {station_id} from local cache: {cache_path}")
             df = pl.read_parquet(cache_path)
-            res = self._filter_and_process(df, start_date, end_date)
+            res = super()._filter_and_process(df, start_date, end_date)
             logger.info(
                 f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s "
                 f"(cache hit, {len(res)} rows)"
@@ -106,32 +106,51 @@ class MetloomClient(BaseSnotelClient):
             schema = dtypes_from_schema(SnotelDataSchema)
             return pl.DataFrame(schema=schema)
 
-        # Metloom sets datetime to index
+        # Metloom returns a GeoDataFrame with a multi-index of (datetime, site)
         pandas_df = pandas_df.reset_index()
 
+        # PyArrow struggles with shapely geometry objects, drop it before converting
+        if "geometry" in pandas_df.columns:
+            pandas_df = pandas_df.drop(columns=["geometry"])
+
         df = pl.from_pandas(pandas_df)
-        df = df.rename({"datetime": SnotelDataSchema.datetime})
 
         # Process and save
-        df = self._process_raw_polars_data(df)
+        df = self._parse_metloom_geodataframe(df)
+        df = self._convert_units(df)
+
+        df = cast_to_schema(df, SnotelDataSchema, column_map=STATION_DATA_COLUMN_MAP)
+        df = df.sort([SnotelDataSchema.datetime])
+
         df.write_parquet(cache_path)
 
-        return self._filter_and_process(df, start_date, end_date)
+        return super()._filter_and_process(df, start_date, end_date)
 
     def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
         raise NotImplementedError(
             "Metloom does not easily support a single bulk download for all station history. Use get_station_data in a parallel map."
         )
 
-    def _is_cache_valid(self, path: Path, days: int) -> bool:
-        if not path.exists():
-            return False
-        mtime = datetime.fromtimestamp(path.stat().st_mtime)
-        return datetime.now() - mtime < timedelta(days=days)
+    def _parse_metloom_geodataframe(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Parse the metloom GeoDataFrame to extract site, drop geometry/units, and handle timezone."""
+        if "datetime" in df.columns:
+            df = df.rename({"datetime": SnotelDataSchema.datetime})
 
-    def _process_raw_polars_data(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Rename columns from metloom names, cast to schema dtypes, validate."""
+        if SnotelDataSchema.datetime in df.columns:
+            dt_col_schema = df.schema[SnotelDataSchema.datetime]
+            if dt_col_schema.__class__.__name__ == "Datetime":
+                if getattr(dt_col_schema, "time_zone", None) is not None:
+                    df = df.with_columns(pl.col(SnotelDataSchema.datetime).dt.replace_time_zone(None))
 
+        # Drop columns ending with _units, geometry, datasource, and site
+        drop_cols = [col for col in df.columns if col.endswith("_units") or col in ["geometry", "datasource", "site"]]
+        if drop_cols:
+            df = df.drop(drop_cols)
+
+        return df
+
+    def _convert_units(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Convert metloom imperial units to metric (inches to meters, F to C)."""
         # Convert metloom imperial units to metric (inches to meters)
         # Metloom returns SWE, SNWD, PRECIP in inches. TEMP in Fahrenheit.
         if "SWE" in df.columns:
@@ -142,25 +161,16 @@ class MetloomClient(BaseSnotelClient):
             df = df.with_columns(pl.col("PRECIPITATION") * 0.0254)
 
         # Fahrenheit to Celsius
-        if "TOBS" in df.columns:
-            df = df.with_columns((pl.col("TOBS") - 32.0) * (5.0 / 9.0))
-        if "TEMPMIN" in df.columns:
-            df = df.with_columns((pl.col("TEMPMIN") - 32.0) * (5.0 / 9.0))
-        if "TEMPMAX" in df.columns:
-            df = df.with_columns((pl.col("TEMPMAX") - 32.0) * (5.0 / 9.0))
+        if "AVG AIR TEMP" in df.columns:
+            df = df.with_columns((pl.col("AVG AIR TEMP") - 32.0) * (5.0 / 9.0))
+        if "MIN AIR TEMP" in df.columns:
+            df = df.with_columns((pl.col("MIN AIR TEMP") - 32.0) * (5.0 / 9.0))
+        if "MAX AIR TEMP" in df.columns:
+            df = df.with_columns((pl.col("MAX AIR TEMP") - 32.0) * (5.0 / 9.0))
 
-        for req_col in ["SWE", "SNOWDEPTH", "PRECIPITATION", "TOBS", "TEMPMIN", "TEMPMAX"]:
+        # Add any missing req columns
+        for req_col in ["SWE", "SNOWDEPTH", "PRECIPITATION", "AVG AIR TEMP", "MIN AIR TEMP", "MAX AIR TEMP"]:
             if req_col not in df.columns:
                 df = df.with_columns(pl.lit(None).cast(pl.Float32).alias(req_col))
-
-        df = cast_to_schema(df, SnotelDataSchema, column_map=STATION_DATA_COLUMN_MAP)
-        return df.sort([SnotelDataSchema.datetime])
-
-    def _filter_and_process(self, df: pl.DataFrame, start_date: str | None, end_date: str | None) -> pl.DataFrame:
-        """Apply date filtering to an already-processed dataframe."""
-        if start_date:
-            df = df.filter(pl.col(SnotelDataSchema.datetime) >= pl.lit(start_date).cast(pl.Date))
-        if end_date:
-            df = df.filter(pl.col(SnotelDataSchema.datetime) <= pl.lit(end_date).cast(pl.Date))
 
         return df

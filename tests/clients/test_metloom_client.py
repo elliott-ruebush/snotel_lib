@@ -43,21 +43,29 @@ def test_metadata_caching(mocker, tmp_path):
 def test_station_data_caching(mocker, tmp_path):
     client = MetloomClient(cache_dir=tmp_path)
 
+    import geopandas as gpd
+    from shapely.geometry import Point
+
     # Mock SnotelPointData.get_daily_data
     mock_df = pd.DataFrame(
         {
             "SWE": [10.0],  # inches
             "SNOWDEPTH": [50.0],  # inches
             "PRECIPITATION": [15.0],  # inches
-            "TOBS": [32.0],  # fahrenheit
-            # Ensure we test the missing columns logic as well (TEMPMIN and TEMPMAX aren't here)
-        },
-        index=pd.DatetimeIndex(["2023-01-01"]),
+            "AVG AIR TEMP": [32.0],  # fahrenheit
+            "SWE_units": ["in"],
+            "datasource": ["NRCS"],
+            # Ensure we test the missing columns logic as well (MIN AIR TEMP and MAX AIR TEMP aren't here)
+        }
     )
-    mock_df.index.name = "datetime"
+    mock_df["datetime"] = pd.to_datetime(["2023-01-01"]).tz_localize("UTC")
+    mock_df["site"] = ["679:WA:SNTL"]
+    mock_df = mock_df.set_index(["datetime", "site"])
+
+    mock_gdf = gpd.GeoDataFrame(mock_df, geometry=[Point(0, 0)], crs="EPSG:4326")
 
     mock_snotel_point = mocker.Mock()
-    mock_snotel_point.get_daily_data.return_value = mock_df
+    mock_snotel_point.get_daily_data.return_value = mock_gdf
     mocker.patch("snotel_lib.clients.metloom_client.SnotelPointData", return_value=mock_snotel_point)
 
     # First call
