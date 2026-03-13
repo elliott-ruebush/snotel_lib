@@ -6,8 +6,6 @@ from pandera.typing.geopandas import GeoSeries
 
 
 class SnotelDataSchema(pl_pa.DataFrameModel):
-    """Schema types for daily SNOTEL station data in Polars."""
-
     datetime: Series[pl.Date] = pl_pa.Field()
     swe_m: Series[pl.Float32] = pl_pa.Field(nullable=True)
     snow_depth_m: Series[pl.Float32] = pl_pa.Field(nullable=True)
@@ -17,19 +15,19 @@ class SnotelDataSchema(pl_pa.DataFrameModel):
     tmax_c: Series[pl.Float32] = pl_pa.Field(nullable=True)
 
     class Config:
-        strict = False
+        strict = True
         coerce = True
 
 
 class AllSnotelDataSchema(SnotelDataSchema):
-    """Schema for combined SNOTEL station data in Polars, including station_id."""
-
     station_id: Series[pl.String] = pl_pa.Field()
+
+    class Config:
+        strict = True
+        coerce = True
 
 
 class StationMetadataSchema(pd_pa.DataFrameModel):
-    """Schema for SNOTEL station metadata."""
-
     station_id: Series[str] = pd_pa.Field()
     station_name: Series[str] = pd_pa.Field(nullable=True)
     network: Series[str] = pd_pa.Field(nullable=True)
@@ -46,5 +44,5 @@ class StationMetadataSchema(pd_pa.DataFrameModel):
     geometry: GeoSeries = pd_pa.Field(nullable=True)
 
     class Config:
-        strict = False  # geojson has many columns, we only strictly care about these
+        strict = True
         coerce = True
