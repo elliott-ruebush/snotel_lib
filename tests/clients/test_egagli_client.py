@@ -27,9 +27,12 @@ def test_metadata_caching(mocker, tmp_path, mock_geojson):
 
     # First call - should hit mock
     metadata = client.get_stations_metadata()
-    assert "123" in metadata.index
+    assert "123" in metadata[StationMetadataSchema.station_id].values
     assert StationMetadataSchema.mountain_range in metadata.columns
-    assert metadata.loc["123", StationMetadataSchema.mountain_range] == "Rainier"
+    assert (
+        metadata.loc[metadata[StationMetadataSchema.station_id] == "123", StationMetadataSchema.mountain_range].iloc[0]
+        == "Rainier"
+    )
     assert (tmp_path / "all_stations.parquet").exists()
 
     assert (

@@ -9,9 +9,14 @@ from metloom.pointdata import SnotelPointData
 from metloom.variables import SnotelVariables
 from pandera.typing.geopandas import GeoDataFrame
 
-from ..config import STATION_CACHE_DAYS
-from ..io import cast_to_schema, dtypes_from_schema
-from ..schemas import SnotelDataSchema, StationMetadataSchema
+from ..constants import STATION_CACHE_DAYS
+from ..io import get_metloom_station_cache_path
+from ..schemas import (
+    SnotelDataSchema,
+    StationMetadataSchema,
+    cast_to_schema,
+    dtypes_from_schema,
+)
 from .base import BaseSnotelClient
 
 logger = logging.getLogger(__name__)
@@ -45,17 +50,15 @@ class MetloomClient(BaseSnotelClient):
     ) -> pl.DataFrame:
         """Fetch daily SNOTEL data for a specific station via Metloom."""
         start_time = time.perf_counter()
-        # Clean colons from station_id for filename
-        safe_station_id = station_id.replace(":", "_")
-        cache_path = self.cache_dir / f"metloom_{safe_station_id}.parquet"
+        cache_path = get_metloom_station_cache_path(self.cache_dir, station_id)
 
-        if not force_update and self._is_cache_valid(cache_path, STATION_CACHE_DAYS):
-            logger.info(f"Retrieving metloom data for {station_id} from local cache: {cache_path}")
-            df = pl.read_parquet(cache_path)
-            res = super()._filter_and_process(df, start_date, end_date)
+        cached = self._read_cache_if_valid(
+            cache_path, STATION_CACHE_DAYS, force_update, pl.read_parquet, f"station data for {station_id}"
+        )
+        if cached is not None:
+            res = super()._filter_and_process(cached, start_date, end_date)
             logger.info(
-                f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s "
-                f"(cache hit, {len(res)} rows)"
+                f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s (cache hit, {len(res)} rows)"
             )
             return res
 
@@ -65,6 +68,11 @@ class MetloomClient(BaseSnotelClient):
             f"(cache miss, {len(res)} rows)"
         )
         return res
+
+    def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
+        raise NotImplementedError(
+            "Metloom does not easily support a single bulk download for all station history. Use get_station_data in a parallel map."
+        )
 
     def _fetch_and_cache_station_data(
         self, station_id: str, cache_path: Path, start_date: str | None, end_date: str | None
@@ -126,11 +134,6 @@ class MetloomClient(BaseSnotelClient):
         df.write_parquet(cache_path)
 
         return super()._filter_and_process(df, start_date, end_date)
-
-    def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
-        raise NotImplementedError(
-            "Metloom does not easily support a single bulk download for all station history. Use get_station_data in a parallel map."
-        )
 
     def _parse_metloom_geodataframe(self, df: pl.DataFrame) -> pl.DataFrame:
         """Parse the metloom GeoDataFrame to extract site, drop geometry/units, and handle timezone."""

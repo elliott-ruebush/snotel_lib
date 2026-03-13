@@ -8,12 +8,10 @@ import pytest
 from pandera.typing import Series
 
 from snotel_lib.io import (
-    cast_to_schema,
-    dtypes_from_schema,
     read_validated_csv,
     read_validated_parquet,
 )
-from snotel_lib.schemas import SnotelDataSchema
+from snotel_lib.schemas import SnotelDataSchema, cast_to_schema, dtypes_from_schema
 
 # ---------------------------------------------------------------------------
 # Fixtures

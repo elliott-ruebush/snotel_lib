@@ -1,0 +1,26 @@
+# Cache durations
+METADATA_CACHE_DAYS = 1
+STATION_CACHE_DAYS = 1
+
+# Physical range bounds (metric)
+MIN_SNOW_DEPTH_M = 0.0
+MAX_SNOW_DEPTH_M = 10.0
+MIN_SWE_M = 0.0
+MAX_SWE_M = 5.0
+MIN_PRECIP_M = 0.0
+MAX_PRECIP_M = 10.0
+
+# QC logic thresholds
+MIN_SWE_M_FOR_DEPTH_CHECK = 0.0254  # ~1 inch
+MIN_SNOW_DENSITY = 0.02
+MAX_SNOW_DENSITY = 0.6
+MIN_DEPTH_M_FOR_DENSITY_CHECK = 0.05
+
+# Daily change limits
+PRECIP_SWE_MAX_DELTA_M = 0.1
+SPIKE_LIMIT_SNOW_DEPTH_M = 1.0
+SPIKE_LIMIT_SWE_M = 0.5
+SPIKE_LIMIT_PRECIP_M = 0.5
+
+# Constants for water year partitioning
+WATER_YEAR_START_MONTH = 10

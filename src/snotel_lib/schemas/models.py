@@ -1,11 +1,10 @@
 import pandera.pandas as pd_pa
 import pandera.polars as pl_pa
 import polars as pl
-from pandera.typing import Index, Series
+from pandera.typing import Series
 from pandera.typing.geopandas import GeoSeries
 
 
-# TODO: enriching with a snow_ratio variable would be interesting
 class SnotelDataSchema(pl_pa.DataFrameModel):
     """Schema types for daily SNOTEL station data in Polars."""
 
@@ -31,8 +30,8 @@ class AllSnotelDataSchema(SnotelDataSchema):
 class StationMetadataSchema(pd_pa.DataFrameModel):
     """Schema for SNOTEL station metadata."""
 
-    code: Index[str] = pd_pa.Field(check_name=True)
-    name: Series[str] = pd_pa.Field(nullable=True)
+    station_id: Series[str] = pd_pa.Field()
+    station_name: Series[str] = pd_pa.Field(nullable=True)
     network: Series[str] = pd_pa.Field(nullable=True)
     elevation_m: Series[float] = pd_pa.Field(nullable=True)
     latitude: Series[float] = pd_pa.Field(nullable=True)

@@ -2,6 +2,22 @@ import polars as pl
 
 from snotel_lib.schemas import AllSnotelDataSchema
 
+from ..constants import (
+    MAX_PRECIP_M,
+    MAX_SNOW_DENSITY,
+    MAX_SNOW_DEPTH_M,
+    MAX_SWE_M,
+    MIN_DEPTH_M_FOR_DENSITY_CHECK,
+    MIN_PRECIP_M,
+    MIN_SNOW_DENSITY,
+    MIN_SNOW_DEPTH_M,
+    MIN_SWE_M,
+    MIN_SWE_M_FOR_DEPTH_CHECK,
+    PRECIP_SWE_MAX_DELTA_M,
+    SPIKE_LIMIT_PRECIP_M,
+    SPIKE_LIMIT_SNOW_DEPTH_M,
+    SPIKE_LIMIT_SWE_M,
+)
 from ..schemas import SnotelDataSchema
 from .models import FilterCheck, FilterList, FlagCheck, FlagList
 
@@ -31,24 +47,19 @@ def range_filter(
     )
 
 
-def day_over_day_delta_flag(col: str, name: str, limit: float) -> FlagCheck:
-    """Flag rows where the day-over-day increase exceeds `limit`, partitioned per station."""
-    return FlagCheck(
-        name=f"LARGE_DAILY_INCREASE_{name}",
-        expr=pl.col(col).diff().over(AllSnotelDataSchema.station_id) > limit,
-        explanation=f"{col} increased by more than {limit} in a single day",
-    )
-
-
 # Negative values and physically implausible upper bounds
-SNOW_DEPTH_RANGE_FILTER = range_filter(SnotelDataSchema.snow_depth_m, "SNOW_DEPTH_RANGE_FILTER", low=0, high=10)
-SWE_RANGE_FILTER = range_filter(SnotelDataSchema.swe_m, "SWE_RANGE_FILTER", low=0, high=5)
-PRECIP_RANGE_FILTER = range_filter(SnotelDataSchema.precip_m, "PRECIP_RANGE_FILTER", low=0, high=10)
+SNOW_DEPTH_RANGE_FILTER = range_filter(
+    SnotelDataSchema.snow_depth_m, "SNOW_DEPTH_RANGE_FILTER", low=MIN_SNOW_DEPTH_M, high=MAX_SNOW_DEPTH_M
+)
+SWE_RANGE_FILTER = range_filter(SnotelDataSchema.swe_m, "SWE_RANGE_FILTER", low=MIN_SWE_M, high=MAX_SWE_M)
+PRECIP_RANGE_FILTER = range_filter(
+    SnotelDataSchema.precip_m, "PRECIP_RANGE_FILTER", low=MIN_PRECIP_M, high=MAX_PRECIP_M
+)
 
 
 # SWE > snow depth is physically impossible - snow can't be denser in water weight than water
 # We only apply this check if SWE is at least 1 inch (0.0254m) to avoid noise at near-zero values
-def swe_exceeds_snow_depth_filter(min_swe_m: float = 0.0254) -> FilterCheck:
+def swe_exceeds_snow_depth_filter(min_swe_m: float = MIN_SWE_M_FOR_DEPTH_CHECK) -> FilterCheck:
     return FilterCheck(
         name="SWE_EXCEEDS_SNOW_DEPTH",
         expr=(pl.col(SnotelDataSchema.swe_m) > min_swe_m)
@@ -78,7 +89,9 @@ def unlikely_snow_ratio_flag(minimum_density: float, maximum_density: float, min
     )
 
 
-SNOW_DENSITY_FLAG = unlikely_snow_ratio_flag(minimum_density=0.02, maximum_density=0.6, min_depth_m=0.05)
+SNOW_DENSITY_FLAG = unlikely_snow_ratio_flag(
+    minimum_density=MIN_SNOW_DENSITY, maximum_density=MAX_SNOW_DENSITY, min_depth_m=MIN_DEPTH_M_FOR_DENSITY_CHECK
+)
 
 
 def precip_vs_swe_change_flag(threshold_m: float) -> FlagCheck:
@@ -100,12 +113,24 @@ def precip_vs_swe_change_flag(threshold_m: float) -> FlagCheck:
     )
 
 
-PRECIP_VS_SWE_CHANGE_FLAG = precip_vs_swe_change_flag(threshold_m=0.1)
+PRECIP_VS_SWE_CHANGE_FLAG = precip_vs_swe_change_flag(threshold_m=PRECIP_SWE_MAX_DELTA_M)
+
+
+def day_over_day_delta_flag(col: str, name: str, limit: float) -> FlagCheck:
+    """Flag rows where the day-over-day increase exceeds `limit`, partitioned per station."""
+    return FlagCheck(
+        name=f"LARGE_DAILY_INCREASE_{name}",
+        expr=pl.col(col).diff().over(AllSnotelDataSchema.station_id) > limit,
+        explanation=f"{col} increased by more than {limit} in a single day",
+    )
+
 
 # Large single-day increases are suspicious but not impossible (e.g. extreme storm)
-SPIKE_SNOW_DEPTH_FLAG = day_over_day_delta_flag(SnotelDataSchema.snow_depth_m, "SNOW_DEPTH", limit=1.0)
-SPIKE_SWE_FLAG = day_over_day_delta_flag(SnotelDataSchema.swe_m, "SWE", limit=0.5)
-SPIKE_PRECIP_FLAG = day_over_day_delta_flag(SnotelDataSchema.precip_m, "PRECIP", limit=0.5)
+SPIKE_SNOW_DEPTH_FLAG = day_over_day_delta_flag(
+    SnotelDataSchema.snow_depth_m, "SNOW_DEPTH", limit=SPIKE_LIMIT_SNOW_DEPTH_M
+)
+SPIKE_SWE_FLAG = day_over_day_delta_flag(SnotelDataSchema.swe_m, "SWE", limit=SPIKE_LIMIT_SWE_M)
+SPIKE_PRECIP_FLAG = day_over_day_delta_flag(SnotelDataSchema.precip_m, "PRECIP", limit=SPIKE_LIMIT_PRECIP_M)
 
 DEFAULT_FILTERS = FilterList(
     [

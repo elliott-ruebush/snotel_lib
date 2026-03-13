@@ -19,8 +19,8 @@ def test_metadata_caching(mocker, tmp_path):
 
     mock_df = pd.DataFrame(
         {
-            StationMetadataSchema.code: ["123"],
-            StationMetadataSchema.name: ["Test Station"],
+            StationMetadataSchema.station_id: ["123"],
+            StationMetadataSchema.station_name: ["Test Station"],
             StationMetadataSchema.network: ["SNTL"],
             StationMetadataSchema.elevation_m: [1000.0],
             StationMetadataSchema.state: ["CO"],
@@ -29,7 +29,7 @@ def test_metadata_caching(mocker, tmp_path):
             StationMetadataSchema.latitude: [0.0],
             StationMetadataSchema.longitude: [0.0],
         }
-    ).set_index(StationMetadataSchema.code)
+    )
 
     gdf = gpd.GeoDataFrame(mock_df, geometry=[Point(0, 0)], crs="EPSG:4326")
 
@@ -37,7 +37,7 @@ def test_metadata_caching(mocker, tmp_path):
     mocker.patch("snotel_lib.clients.egagli_client.EgagliClient.get_stations_metadata", return_value=gdf)
 
     metadata = client.get_stations_metadata()
-    assert "123" in metadata.index
+    assert "123" in metadata[StationMetadataSchema.station_id].values
 
 
 def test_station_data_caching(mocker, tmp_path):
