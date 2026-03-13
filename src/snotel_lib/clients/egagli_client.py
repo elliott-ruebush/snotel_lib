@@ -10,6 +10,7 @@ import geopandas as gpd
 import polars as pl
 import requests
 from pandera.typing.geopandas import GeoDataFrame
+from pandera.typing.polars import DataFrame
 
 from ..calculation import accumulate_precip_by_water_year
 from ..constants import METADATA_CACHE_DAYS, STATION_CACHE_DAYS
@@ -91,7 +92,7 @@ class EgagliClient(BaseSnotelClient):
         start_date: str | None = None,
         end_date: str | None = None,
         force_update: bool = False,
-    ) -> pl.DataFrame:
+    ) -> DataFrame[SnotelDataSchema]:
         """Fetch daily SNOTEL data for a specific station, with caching."""
         start_time = time.perf_counter()
         cache_path = get_egagli_station_cache_path(self.cache_dir, station_id)
@@ -104,15 +105,15 @@ class EgagliClient(BaseSnotelClient):
             logger.info(
                 f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s (cache hit, {len(res)} rows)"
             )
-            return res
+            return typing.cast(DataFrame[SnotelDataSchema], res)
 
         res = self._fetch_and_cache_station_data(station_id, cache_path, start_date, end_date)
         logger.info(
             f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s (cache miss, {len(res)} rows)"
         )
-        return res
+        return typing.cast(DataFrame[SnotelDataSchema], res)
 
-    def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
+    def get_all_station_data(self, force_update: bool = False) -> DataFrame[AllSnotelDataSchema]:
         """Fetch combined daily SNOTEL data for all stations."""
         start_time = time.perf_counter()
         cache_path = get_all_station_data_cache_path(self.cache_dir)
@@ -124,7 +125,7 @@ class EgagliClient(BaseSnotelClient):
             logger.info(
                 f"Combined data retrieval took {time.perf_counter() - start_time:.2f}s (cache hit, {len(cached)} rows, {cached.estimated_size('mb'):.1f} MB)"
             )
-            return cached
+            return typing.cast(DataFrame[AllSnotelDataSchema], cached)
 
         logger.info(f"Fetching combined data from internet: {EGAGLI_ALL_STATIONS_TAR_URL}")
 
@@ -145,7 +146,7 @@ class EgagliClient(BaseSnotelClient):
             f"Combined data retrieval took {time.perf_counter() - start_time:.2f}s "
             f"(cache miss, {len(combined_df)} rows, {combined_df.estimated_size('mb'):.1f} MB)"
         )
-        return combined_df
+        return typing.cast(DataFrame[AllSnotelDataSchema], combined_df)
 
     def _fetch_and_cache_metadata(self, cache_path: Path) -> GeoDataFrame[StationMetadataSchema]:
         logger.info(f"Fetching metadata from internet: {EGAGLI_GEOJSON_URL}")
@@ -179,7 +180,9 @@ class EgagliClient(BaseSnotelClient):
 
         return self._filter_and_process(df, start_date, end_date)
 
-    def _process_raw_polars_data(self, df: pl.DataFrame, is_all_stations: bool = False) -> pl.DataFrame:
+    def _process_raw_polars_data(
+        self, df: pl.DataFrame, is_all_stations: bool = False
+    ) -> pl.DataFrame:  # returns AllSnotelDataSchema when is_all_stations=True
         """Rename columns from source names, cast to schema dtypes, validate, and compute accumulated precip."""
         schema = AllSnotelDataSchema if is_all_stations else SnotelDataSchema
         df = cast_to_schema(df, schema, column_map=STATION_DATA_COLUMN_MAP)

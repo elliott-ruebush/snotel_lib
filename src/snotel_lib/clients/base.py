@@ -6,8 +6,9 @@ from pathlib import Path
 
 import polars as pl
 from pandera.typing.geopandas import GeoDataFrame
+from pandera.typing.polars import DataFrame
 
-from ..schemas import SnotelDataSchema, StationMetadataSchema
+from ..schemas import AllSnotelDataSchema, SnotelDataSchema, StationMetadataSchema
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class BaseSnotelClient(abc.ABC):
         start_date: str | None = None,
         end_date: str | None = None,
         force_update: bool = False,
-    ) -> pl.DataFrame:
+    ) -> DataFrame[SnotelDataSchema]:
         """Fetch daily SNOTEL data for a specific station.
 
         Args:
@@ -57,7 +58,7 @@ class BaseSnotelClient(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
+    def get_all_station_data(self, force_update: bool = False) -> DataFrame[AllSnotelDataSchema]:
         """Fetch combined daily SNOTEL data for all stations.
 
         Args:

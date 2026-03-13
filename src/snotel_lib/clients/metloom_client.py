@@ -1,5 +1,6 @@
 import logging
 import time
+import typing
 from datetime import datetime
 from pathlib import Path
 
@@ -8,10 +9,12 @@ from dateutil.relativedelta import relativedelta
 from metloom.pointdata import SnotelPointData
 from metloom.variables import SnotelVariables
 from pandera.typing.geopandas import GeoDataFrame
+from pandera.typing.polars import DataFrame
 
 from ..constants import STATION_CACHE_DAYS
 from ..io import get_metloom_station_cache_path
 from ..schemas import (
+    AllSnotelDataSchema,
     SnotelDataSchema,
     StationMetadataSchema,
     cast_to_schema,
@@ -47,7 +50,7 @@ class MetloomClient(BaseSnotelClient):
         start_date: str | None = None,
         end_date: str | None = None,
         force_update: bool = False,
-    ) -> pl.DataFrame:
+    ) -> DataFrame[SnotelDataSchema]:
         """Fetch daily SNOTEL data for a specific station via Metloom."""
         start_time = time.perf_counter()
         cache_path = get_metloom_station_cache_path(self.cache_dir, station_id)
@@ -60,16 +63,16 @@ class MetloomClient(BaseSnotelClient):
             logger.info(
                 f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s (cache hit, {len(res)} rows)"
             )
-            return res
+            return typing.cast(DataFrame[SnotelDataSchema], res)
 
         res = self._fetch_and_cache_station_data(station_id, cache_path, start_date, end_date)
         logger.info(
             f"Data retrieval for {station_id} took {time.perf_counter() - start_time:.2f}s "
             f"(cache miss, {len(res)} rows)"
         )
-        return res
+        return typing.cast(DataFrame[SnotelDataSchema], res)
 
-    def get_all_station_data(self, force_update: bool = False) -> pl.DataFrame:
+    def get_all_station_data(self, force_update: bool = False) -> DataFrame[AllSnotelDataSchema]:
         raise NotImplementedError(
             "Metloom does not easily support a single bulk download for all station history. Use get_station_data in a parallel map."
         )
