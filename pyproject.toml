@@ -18,6 +18,9 @@ dependencies = [
     "requests>=2.32.5",
 ]
 
+[project.scripts]
+clean-cache = "snotel_lib.clean_cache_dir:main"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
